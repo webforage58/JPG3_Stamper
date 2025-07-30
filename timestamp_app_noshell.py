@@ -69,8 +69,8 @@ class PillowWorker(QThread):
                 text_width = text_bbox[2] - text_bbox[0]
                 text_height = text_bbox[3] - text_bbox[1]
                 
-                x = self.position - text_width - 10 # 10px padding from the edge
-                y = img.height - text_height - y_offset
+                x = self.position - text_width - 40  # 40px padding from the edge
+                y = img.height - text_height - y_offset - 20 # 20px padding from the bottom
                 return (x, y)
 
             # Draw time and date
@@ -117,7 +117,8 @@ class VideoWorker(QThread):
             
             self.progress.emit("Renamed and copied all stamped images.")
 
-            output_filename = f"output_crf{self.crf}_fps{self.fps}.mp4"
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_filename = f"video_{timestamp}_crf{self.crf}_fps{self.fps}.mp4"
             output_path = os.path.join(self.output_path, output_filename)
 
             ffmpeg_command = [
