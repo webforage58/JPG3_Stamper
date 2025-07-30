@@ -1,0 +1,85 @@
+johnhuberd@Johns-M4-Mac-mini JPG3_Stamper % exiftool /Volumes/Untitled/DCIM/Camera10/IMG_20250729_213031_020.jpg
+ExifTool Version Number         : 13.04
+File Name                       : IMG_20250729_213031_020.jpg
+Directory                       : /Volumes/Untitled/DCIM/Camera10
+File Size                       : 2.2 MB
+File Modification Date/Time     : 2025:07:30 03:50:21-06:00
+File Access Date/Time           : 2025:07:30 04:23:48-06:00
+File Inode Change Date/Time     : 2025:07:30 03:50:21-06:00
+File Permissions                : -rwx------
+File Type                       : JPEG
+File Type Extension             : jpg
+MIME Type                       : image/jpeg
+Exif Byte Order                 : Little-endian (Intel, II)
+Image Description               : IMG_20250729_213031_020.jpg
+Make                            : Arashi Vision
+Camera Model Name               : Insta360 Ace Pro 2
+Orientation                     : Horizontal (normal)
+X Resolution                    : 72
+Y Resolution                    : 72
+Resolution Unit                 : inches
+Software                        : v_1.2.23_build1
+Modify Date                     : 2025:07:30 03:50:21
+Y Cb Cr Positioning             : Centered
+Exposure Time                   : 30
+F Number                        : 2.6
+Exposure Program                : Program AE
+ISO                             : 107
+Exif Version                    : 0231
+Date/Time Original              : 2025:07:30 03:50:21
+Create Date                     : 2025:07:30 03:50:21
+Components Configuration        : Y, Cb, Cr, -
+Compressed Bits Per Pixel       : 0.8907402886
+Shutter Speed Value             : 1/30
+Aperture Value                  : 2.5
+Exposure Compensation           : 0
+Max Aperture Value              : 2.5
+Subject Distance                : 0 m
+Metering Mode                   : Center-weighted average
+Light Source                    : Unknown
+Flash                           : No flash function
+Focal Length                    : 3.5 mm
+Warning                         : [minor] Unrecognized MakerNotes
+Flashpix Version                : .
+Color Space                     : sRGB
+Exif Image Width                : 4096
+Exif Image Height               : 2304
+Interoperability Index          : R98 - DCF basic file (sRGB)
+Interoperability Version        : 0100
+Exposure Index                  : undef
+Sensing Method                  : One-chip color area
+File Source                     : Digital Camera
+Scene Type                      : Directly photographed
+Custom Rendered                 : Normal
+Exposure Mode                   : Auto
+White Balance                   : Manual
+Digital Zoom Ratio              : 0
+Focal Length In 35mm Format     : 13 mm
+Scene Capture Type              : Landscape
+Gain Control                    : None
+Contrast                        : Normal
+Saturation                      : Normal
+Sharpness                       : Normal
+Device Setting Description      : (Binary data 4 bytes, use -b option to extract)
+Subject Distance Range          : Unknown
+Compression                     : JPEG (old-style)
+Thumbnail Offset                : 2048
+Thumbnail Length                : 1953
+Preview Image                   : (Binary data 30273 bytes, use -b option to extract)
+Image Width                     : 4096
+Image Height                    : 2304
+Encoding Process                : Baseline DCT, Huffman coding
+Bits Per Sample                 : 8
+Color Components                : 3
+Y Cb Cr Sub Sampling            : YCbCr4:2:0 (2 2)
+Aperture                        : 2.6
+Image Size                      : 4096x2304
+Megapixels                      : 9.4
+Scale Factor To 35 mm Equivalent: 3.7
+Shutter Speed                   : 30
+Thumbnail Image                 : (Binary data 1953 bytes, use -b option to extract)
+Circle Of Confusion             : 0.008 mm
+Field Of View                   : 108.3 deg
+Focal Length                    : 3.5 mm (35 mm equivalent: 13.0 mm)
+Hyperfocal Distance             : 0.59 m
+Light Value                     : -2.2
