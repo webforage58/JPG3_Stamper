@@ -87,7 +87,7 @@ class PillowWorker(QThread):
 
 class VideoWorker(QThread):
     """Thread for running FFmpeg video creation."""
-    progress = Signal(str)
+    progress = Signal(int, str)
     finished = Signal(bool, str)
 
     def __init__(self, image_folder, image_files, crf, fps, output_path):
@@ -106,16 +106,18 @@ class VideoWorker(QThread):
             self.finished.emit(False, f"Error creating video: {e}")
 
     def create_video_with_ffmpeg(self):
+        total_files = len(self.image_files)
         with tempfile.TemporaryDirectory() as temp_dir:
-            self.progress.emit(f"Created temporary directory: {temp_dir}")
+            self.progress.emit(0, f"Created temporary directory: {temp_dir}")
 
             # Rename and copy files to temporary directory
             for i, filename in enumerate(self.image_files):
                 source_path = os.path.join(self.image_folder, filename)
                 dest_path = os.path.join(temp_dir, f"image-{i:04d}.jpg")
                 shutil.copy(source_path, dest_path)
+                self.progress.emit(int(((i + 1) / total_files) * 50), f"Copying file {i+1}/{total_files}")
             
-            self.progress.emit("Renamed and copied all stamped images.")
+            self.progress.emit(50, "Renamed and copied all stamped images.")
 
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             output_filename = f"video_{timestamp}_crf{self.crf}_fps{self.fps}.mp4"
@@ -133,11 +135,12 @@ class VideoWorker(QThread):
                 output_path
             ]
 
-            self.progress.emit(f"Running command: {' '.join(ffmpeg_command)}")
+            self.progress.emit(55, f"Running command: {' '.join(ffmpeg_command)}")
             process = subprocess.Popen(ffmpeg_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             stdout, stderr = process.communicate()
 
             if process.returncode == 0:
+                self.progress.emit(100, f"✅ Video created successfully: {output_path}")
                 return True, f"✅ Video created successfully: {output_path}"
             else:
                 return False, f"❌ FFmpeg error:\n{stderr}"
@@ -411,17 +414,24 @@ class TimestampApp(QMainWindow):
             QMessageBox.warning(self, "Error", "No stamped images found in the destination folder.")
             return
 
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+
         crf = self.crf_dropdown.currentText().split(' ')[0]
         fps = self.fps_dropdown.currentText()
         video_output_path = self.video_output_path_input.text()
 
         self.video_worker = VideoWorker(dest_dir, stamped_files, crf, fps, video_output_path)
-        self.video_worker.progress.connect(self.log)
+        self.video_worker.progress.connect(self.update_progress)
         self.video_worker.finished.connect(self.on_video_finished)
         self.video_worker.start()
         self.create_video_button.setEnabled(False)
         self.delete_stamped_button.setEnabled(False)
         self.log(f"🎬 Starting video creation with CRF={crf} and FPS={fps}...")
+
+    def update_progress(self, value, message):
+        self.progress_bar.setValue(value)
+        self.log(message)
 
     def on_video_finished(self, success, message):
         self.log(message)
