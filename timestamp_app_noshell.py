@@ -7,6 +7,9 @@ import os
 import sys
 import datetime
 import re
+import subprocess
+import tempfile
+import shutil
 from pathlib import Path
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QLabel, QPushButton, QComboBox, QFileDialog, QTextEdit, 
@@ -81,6 +84,61 @@ class PillowWorker(QThread):
                 draw.text(date_pos, formatted_date, font=font, fill="white")
 
             img.save(self.dest_path, "JPEG")
+
+class VideoWorker(QThread):
+    """Thread for running FFmpeg video creation."""
+    progress = Signal(str)
+    finished = Signal(bool, str)
+
+    def __init__(self, image_folder, image_files, crf, fps):
+        super().__init__()
+        self.image_folder = image_folder
+        self.image_files = image_files
+        self.crf = crf
+        self.fps = fps
+
+    def run(self):
+        try:
+            output_path, message = self.create_video_with_ffmpeg()
+            self.finished.emit(True, message)
+        except Exception as e:
+            self.finished.emit(False, f"Error creating video: {e}")
+
+    def create_video_with_ffmpeg(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            self.progress.emit(f"Created temporary directory: {temp_dir}")
+
+            # Rename and copy files to temporary directory
+            for i, filename in enumerate(self.image_files):
+                source_path = os.path.join(self.image_folder, filename)
+                dest_path = os.path.join(temp_dir, f"image-{i:04d}.jpg")
+                shutil.copy(source_path, dest_path)
+            
+            self.progress.emit("Renamed and copied all stamped images.")
+
+            output_filename = f"output_crf{self.crf}_fps{self.fps}.mp4"
+            output_path = os.path.join(self.image_folder, output_filename)
+
+            ffmpeg_command = [
+                'ffmpeg',
+                '-framerate', str(self.fps),
+                '-i', os.path.join(temp_dir, 'image-%04d.jpg'),
+                '-c:v', 'libx264',
+                '-preset', 'slow',
+                '-crf', str(self.crf),
+                '-pix_fmt', 'yuv420p',
+                output_path
+            ]
+
+            self.progress.emit(f"Running command: {' '.join(ffmpeg_command)}")
+            process = subprocess.Popen(ffmpeg_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            stdout, stderr = process.communicate()
+
+            if process.returncode == 0:
+                return output_path, f"✅ Video created successfully: {output_path}"
+            else:
+                return None, f"❌ FFmpeg error:\n{stderr}"
+
 
 class TimestampApp(QMainWindow):
     def __init__(self):
@@ -171,6 +229,41 @@ class TimestampApp(QMainWindow):
         self.tabs.addTab(config_tab, "Configuration")
         self.tabs.addTab(process_tab, "Process")
 
+        # Video Tab
+        video_tab = QWidget()
+        video_layout = QVBoxLayout(video_tab)
+        video_group = QGroupBox("Video Creation")
+        video_group_layout = QVBoxLayout(video_group)
+
+        # CRF Setting
+        crf_layout = QHBoxLayout()
+        crf_layout.addWidget(QLabel("CRF Value:"))
+        self.crf_dropdown = QComboBox()
+        self.crf_dropdown.addItems([
+            "17 (Excellent Quality, Good Size)",
+            "10 (Near-Archival, Large Size)",
+            "6 (Extreme Quality, Very Large Size)"
+        ])
+        crf_layout.addWidget(self.crf_dropdown)
+        video_group_layout.addLayout(crf_layout)
+
+        # FPS Setting
+        fps_layout = QHBoxLayout()
+        fps_layout.addWidget(QLabel("FPS:"))
+        self.fps_dropdown = QComboBox()
+        self.fps_dropdown.addItems(["15", "30"])
+        self.fps_dropdown.setCurrentIndex(1)
+        fps_layout.addWidget(self.fps_dropdown)
+        video_group_layout.addLayout(fps_layout)
+        
+        self.create_video_button = QPushButton("Create Video")
+        self.create_video_button.clicked.connect(self.create_video)
+        video_group_layout.addWidget(self.create_video_button)
+
+        video_layout.addWidget(video_group)
+        video_layout.addStretch()
+        self.tabs.addTab(video_tab, "Create Video")
+
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
         self.progress_bar = QProgressBar()
@@ -181,6 +274,7 @@ class TimestampApp(QMainWindow):
         main_layout.addWidget(self.log_text)
 
         self.worker = None
+        self.video_worker = None
         self.all_jpg_files = []
         self.current_file_index = 0
 
@@ -286,6 +380,36 @@ class TimestampApp(QMainWindow):
             self.status_indicator.setText("Error")
         self.current_file_index += 1
         self.process_next_jpg()
+
+    def create_video(self):
+        dest_dir = self.dest_path_input.text()
+        if not os.path.isdir(dest_dir):
+            QMessageBox.warning(self, "Error", f"Destination directory '{dest_dir}' does not exist")
+            return
+
+        stamped_files = sorted([f for f in os.listdir(dest_dir) if f.startswith('stamped_') and f.lower().endswith('.jpg')])
+        
+        if not stamped_files:
+            QMessageBox.warning(self, "Error", "No stamped images found in the destination folder.")
+            return
+
+        crf = self.crf_dropdown.currentText().split(' ')[0]
+        fps = self.fps_dropdown.currentText()
+
+        self.video_worker = VideoWorker(dest_dir, stamped_files, crf, fps)
+        self.video_worker.progress.connect(self.log)
+        self.video_worker.finished.connect(self.on_video_finished)
+        self.video_worker.start()
+        self.create_video_button.setEnabled(False)
+        self.log(f"🎬 Starting video creation with CRF={crf} and FPS={fps}...")
+
+    def on_video_finished(self, success, message):
+        self.log(message)
+        self.create_video_button.setEnabled(True)
+        if success:
+            self.status_indicator.setText("Video Ready")
+        else:
+            self.status_indicator.setText("Video Error")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
