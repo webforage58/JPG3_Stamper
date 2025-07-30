@@ -90,17 +90,18 @@ class VideoWorker(QThread):
     progress = Signal(str)
     finished = Signal(bool, str)
 
-    def __init__(self, image_folder, image_files, crf, fps):
+    def __init__(self, image_folder, image_files, crf, fps, output_path):
         super().__init__()
         self.image_folder = image_folder
         self.image_files = image_files
         self.crf = crf
         self.fps = fps
+        self.output_path = output_path
 
     def run(self):
         try:
-            output_path, message = self.create_video_with_ffmpeg()
-            self.finished.emit(True, message)
+            success, message = self.create_video_with_ffmpeg()
+            self.finished.emit(success, message)
         except Exception as e:
             self.finished.emit(False, f"Error creating video: {e}")
 
@@ -117,7 +118,7 @@ class VideoWorker(QThread):
             self.progress.emit("Renamed and copied all stamped images.")
 
             output_filename = f"output_crf{self.crf}_fps{self.fps}.mp4"
-            output_path = os.path.join(self.image_folder, output_filename)
+            output_path = os.path.join(self.output_path, output_filename)
 
             ffmpeg_command = [
                 'ffmpeg',
@@ -127,6 +128,7 @@ class VideoWorker(QThread):
                 '-preset', 'slow',
                 '-crf', str(self.crf),
                 '-pix_fmt', 'yuv420p',
+                '-y',  # Overwrite output file if it exists
                 output_path
             ]
 
@@ -135,9 +137,9 @@ class VideoWorker(QThread):
             stdout, stderr = process.communicate()
 
             if process.returncode == 0:
-                return output_path, f"✅ Video created successfully: {output_path}"
+                return True, f"✅ Video created successfully: {output_path}"
             else:
-                return None, f"❌ FFmpeg error:\n{stderr}"
+                return False, f"❌ FFmpeg error:\n{stderr}"
 
 
 class TimestampApp(QMainWindow):
@@ -147,7 +149,6 @@ class TimestampApp(QMainWindow):
         
     def init_ui(self):
         self.setWindowTitle("JPG Timestamper (Pillow Edition)")
-        self.setMinimumSize(1100, 900)
         
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
@@ -215,25 +216,31 @@ class TimestampApp(QMainWindow):
         self.dual_timestamp_checkbox.setChecked(True)
         timestamp_layout.addWidget(self.dual_timestamp_checkbox)
         config_layout.addWidget(timestamp_group)
-        config_layout.addStretch()
 
-        # Process Tab
-        process_tab = QWidget()
-        process_layout = QVBoxLayout(process_tab)
         self.stamp_button = QPushButton("Stamp JPGs with Pillow")
         self.stamp_button.clicked.connect(self.stamp_jpgs)
-        process_layout.addWidget(self.stamp_button)
-        process_layout.addStretch()
+        config_layout.addWidget(self.stamp_button)
+        config_layout.addStretch()
 
         self.tabs = QTabWidget()
         self.tabs.addTab(config_tab, "Configuration")
-        self.tabs.addTab(process_tab, "Process")
 
         # Video Tab
         video_tab = QWidget()
         video_layout = QVBoxLayout(video_tab)
         video_group = QGroupBox("Video Creation")
         video_group_layout = QVBoxLayout(video_group)
+
+        # Video Output Path
+        video_output_layout = QHBoxLayout()
+        video_output_layout.addWidget(QLabel("Video Output Folder:"))
+        self.video_output_path_input = QLineEdit("/Users/johnhuberd/Downloads/timelapse/stamped_images")
+        self.video_output_path_input.setReadOnly(True)
+        video_output_button = QPushButton("Browse...")
+        video_output_button.clicked.connect(self.select_video_output_folder)
+        video_output_layout.addWidget(self.video_output_path_input, 1)
+        video_output_layout.addWidget(video_output_button)
+        video_group_layout.addLayout(video_output_layout)
 
         # CRF Setting
         crf_layout = QHBoxLayout()
@@ -259,6 +266,11 @@ class TimestampApp(QMainWindow):
         self.create_video_button = QPushButton("Create Video")
         self.create_video_button.clicked.connect(self.create_video)
         video_group_layout.addWidget(self.create_video_button)
+
+        self.delete_stamped_button = QPushButton("Delete Stamped Images")
+        self.delete_stamped_button.clicked.connect(self.delete_stamped_images)
+        self.delete_stamped_button.setEnabled(False)
+        video_group_layout.addWidget(self.delete_stamped_button)
 
         video_layout.addWidget(video_group)
         video_layout.addStretch()
@@ -295,6 +307,11 @@ class TimestampApp(QMainWindow):
         if folder:
             self.dest_path_input.setText(folder)
             os.makedirs(folder, exist_ok=True)
+
+    def select_video_output_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Video Output Folder", self.video_output_path_input.text())
+        if folder:
+            self.video_output_path_input.setText(folder)
 
     def get_font_size(self):
         index = self.font_size_dropdown.currentIndex()
@@ -395,12 +412,14 @@ class TimestampApp(QMainWindow):
 
         crf = self.crf_dropdown.currentText().split(' ')[0]
         fps = self.fps_dropdown.currentText()
+        video_output_path = self.video_output_path_input.text()
 
-        self.video_worker = VideoWorker(dest_dir, stamped_files, crf, fps)
+        self.video_worker = VideoWorker(dest_dir, stamped_files, crf, fps, video_output_path)
         self.video_worker.progress.connect(self.log)
         self.video_worker.finished.connect(self.on_video_finished)
         self.video_worker.start()
         self.create_video_button.setEnabled(False)
+        self.delete_stamped_button.setEnabled(False)
         self.log(f"🎬 Starting video creation with CRF={crf} and FPS={fps}...")
 
     def on_video_finished(self, success, message):
@@ -408,8 +427,33 @@ class TimestampApp(QMainWindow):
         self.create_video_button.setEnabled(True)
         if success:
             self.status_indicator.setText("Video Ready")
+            self.delete_stamped_button.setEnabled(True)
         else:
             self.status_indicator.setText("Video Error")
+
+    def delete_stamped_images(self):
+        dest_dir = self.dest_path_input.text()
+        reply = QMessageBox.question(self, 'Confirm Deletion',
+                                     f"Are you sure you want to delete all stamped images in\n{dest_dir}?",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                     QMessageBox.StandardButton.No)
+
+        if reply == QMessageBox.StandardButton.Yes:
+            self.log("🗑️ Deleting stamped images...")
+            deleted_count = 0
+            error_count = 0
+            for filename in os.listdir(dest_dir):
+                if filename.startswith('stamped_') and filename.lower().endswith('.jpg'):
+                    try:
+                        os.remove(os.path.join(dest_dir, filename))
+                        deleted_count += 1
+                    except OSError as e:
+                        self.log(f"Error deleting {filename}: {e}")
+                        error_count += 1
+            self.log(f"✅ Deleted {deleted_count} files.")
+            if error_count > 0:
+                self.log(f"❌ Failed to delete {error_count} files.")
+            self.delete_stamped_button.setEnabled(False)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
